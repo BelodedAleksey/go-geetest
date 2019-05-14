@@ -1,0 +1,16 @@
+*.lock
+*.dll
+*.so
+*.bak
+*.test
+*.out
+.DS_Store
+vendor/
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
