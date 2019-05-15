@@ -1,7 +1,7 @@
 package geetest
 
 import (
-	"bytes"
+	"math"
 	"net/url"
 	"strings"
 
@@ -19,7 +19,7 @@ const (
 	API_URL                      = "http://api.geetest.com"
 	REGISTER_HANDLER             = "/register.php"
 	VALIDATE_HANDLER             = "/validate.php"
-	GT_SDK_VERSION               = "Go_3.0.0"
+	GT_SDK_VERSION               = "Go.gt3-0.1.0"
 )
 
 type App struct {
@@ -29,6 +29,7 @@ type App struct {
 }
 
 type Response struct {
+	Status    bool   `json:"-"`
 	Success   int    `json:"success"`
 	GT        string `json:"gt"`
 	Challenge string `json:"challenge"`
@@ -39,23 +40,25 @@ func (res *Response) Marshal() string {
 	return string(b)
 }
 
-func New(id, key stirng) *App {
+func New(id, key string) *App {
 	return &App{
 		id,
 		key,
+		nil,
 	}
 }
 
 func (app *App) PreProcess(user_id string) *Response {
 	addr := makeUrl(API_URL+REGISTER_HANDLER, url.Values{
-		"gt":      app.captchaID,
-		"user_id": user_id,
+		"gt":      []string{app.captchaID},
+		"user_id": []string{user_id},
 	})
 
 	back := new(Response)
 
 	res, err := httpGet(addr)
 	if err != nil {
+		back.Status = false
 		back.Success = 0
 		back.GT = app.captchaID
 		back.Challenge = makeSH1(random.RandBytes(10))[:34] // 仅取34位
@@ -63,6 +66,7 @@ func (app *App) PreProcess(user_id string) *Response {
 	}
 
 	// 得到数据
+	back.Status = true
 	back.Success = 1
 	back.GT = app.captchaID
 	back.Challenge = makeMD5([]byte(res + app.privateKey))
@@ -71,75 +75,40 @@ func (app *App) PreProcess(user_id string) *Response {
 }
 
 // 正常模式获取验证结果
-func (app *App) SuccessValidate(challenge, validate, seccode string, user_id string) int {
+func (app *App) SuccessValidate(challenge, validate, seccode string, user_id string) bool {
 	if !app.checkValidate(challenge, validate) {
-		return 0
+		return false
 	}
 
-	data := url.Values{
-		"seccode": seccode,
-		"sdk":     GT_SDK_VERSION,
-	}
+	data := url.Values{}
+	data.Set("seccode", seccode)
+	data.Set("sdk", GT_SDK_VERSION)
 	if len(user_id) > 0 {
 		data.Set("user_id", user_id)
 	}
 
 	res, err := httpPost(API_URL+VALIDATE_HANDLER, data)
-	if err != nil {
-		return 0
+	if err != nil || res == "false" {
+		return false
 	}
 
-	if res == makeMD5([]byte(seccode)) {
-		return 1
-	}
-
-	return 0
+	return res == makeMD5([]byte(seccode))
 }
 
-// /**
-//  * 宕机模式获取验证结果
-//  *
-//  * @param $challenge
-//  * @param $validate
-//  * @param $seccode
-//  * @return int
-//  */
-// public function fail_validate($challenge, $validate, $seccode) {
-//     if ($validate) {
-//         $value   = explode("_", $validate);
-//         $ans     = $this->decode_response($challenge, $value['0']);
-//         $bg_idx  = $this->decode_response($challenge, $value['1']);
-//         $grp_idx = $this->decode_response($challenge, $value['2']);
-//         $x_pos   = $this->get_failback_pic_ans($bg_idx, $grp_idx);
-//         $answer  = abs($ans - $x_pos);
-//         if ($answer < 4) {
-//             return 1;
-//         } else {
-//             return 0;
-//         }
-//     } else {
-//         return 0;
-//     }
-// }
 // 宕机模式获取验证结果
-func (app *App) FailValidate(challenge, validate, seccode string) int {
+func (App) FailValidate(challenge, validate, seccode string) bool {
 	if len(validate) > 0 {
-		value := strings.Split(validate, "_")
+		arr := strings.Split(validate, "_")
+		ans := decodeResponse(challenge, arr[0])
+		bg_idx := decodeResponse(challenge, arr[1])
+		grp_idx := decodeResponse(challenge, arr[2])
+		x_pos := getFailbackPicAns(bg_idx, grp_idx)
+		answer := int(math.Abs(float64(ans - x_pos)))
 
-		// $value   = explode("_", $validate);
-		// $ans     = $this->decode_response($challenge, $value['0']);
-		// $bg_idx  = $this->decode_response($challenge, $value['1']);
-		// $grp_idx = $this->decode_response($challenge, $value['2']);
-		// $x_pos   = $this->get_failback_pic_ans($bg_idx, $grp_idx);
-		// $answer  = abs($ans - $x_pos);
-		// if ($answer < 4) {
-		//     return 1;
-		// } else {
-		//     return 0;
-		// }
+		return answer < 4
 	}
 
-	return 0
+	return false
 }
 
 func (app *App) checkValidate(challenge, validate string) bool {

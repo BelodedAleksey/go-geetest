@@ -53,17 +53,23 @@ func httpPost(addr string, val url.Values) (string, error) {
 	var err error
 
 	// post数据
-	postParams := strings.NewReader(val.Encode())
+	postParams := strings.NewReader("")
+	if val != nil {
+		postParams = strings.NewReader(val.Encode())
+	}
 
 	// 请求对象
 	var req *http.Request
-	req, err = http.NewRequest(http.MethodGet, addr, postParams)
+	req, err = http.NewRequest(http.MethodPost, addr, postParams)
 	if err != nil {
 		return "", err
 	}
 
 	// 请求对象设置
 	// ......
+
+	// 请求头
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	// 发送请求 并返回
 	var res *http.Response
