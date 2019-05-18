@@ -35,9 +35,13 @@ type Response struct {
 	Challenge string `json:"challenge"`
 }
 
-func (res *Response) Marshal() string {
+func (res *Response) Marshal() []byte {
 	b, _ := json.Marshal(res)
-	return string(b)
+	return b
+}
+
+func (res *Response) String() string {
+	return string(res.Marshal())
 }
 
 func New(id, key string) *App {

@@ -110,7 +110,7 @@ func main() {
 		//
 		res := app.PreProcess(sess.UserID)
 		sess.Status = res.Status
-		w.Write([]byte(res.Marshal()))
+		w.Write(res.Marshal())
 	})
 
 	http.HandleFunc("/validate", func(w http.ResponseWriter, r *http.Request) {
